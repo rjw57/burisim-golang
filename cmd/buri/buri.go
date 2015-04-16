@@ -5,13 +5,19 @@ import (
 	"net"
 	"os"
 
+	"github.com/codegangsta/cli"
 	"github.com/pda/go6502/bus"
 	"github.com/pda/go6502/cpu"
 	"github.com/pda/go6502/memory"
 	"github.com/rjw57/burisim-golang"
 )
 
-func main() {
+func runSim(c *cli.Context) {
+	args := c.Args()
+	if len(args) == 0 {
+		panic("no ROM image specified")
+	}
+
 	// create the Buri CPU
 	cpu := cpu.Cpu{}
 
@@ -28,7 +34,7 @@ func main() {
 	}
 
 	// load the ROM from image
-	rp := os.Args[1]
+	rp := args[0]
 	if rom, err := memory.RomFromFile(rp); err != nil {
 		fmt.Errorf("error loading ROM: %v", err)
 	} else {
@@ -54,4 +60,12 @@ func main() {
 	for {
 		cpu.Step()
 	}
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "buri"
+	app.Usage = "emulate the Buri microcomputer"
+	app.Action = runSim
+	app.Run(os.Args)
 }
