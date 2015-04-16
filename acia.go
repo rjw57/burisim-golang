@@ -1,6 +1,10 @@
 package buri
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+	"net"
+)
 
 type ACIA struct {
 	// CommandReg is a copy of the current command register
@@ -68,4 +72,59 @@ func (a *ACIA) Write(i uint16, v byte) {
 	default:
 		fmt.Printf("write @ %v, %v\n", i, v)
 	}
+}
+
+// CreateACIAOnListener will create an instance of ACIA and run a goroutine
+// wiring up the ACIA to the passed Listener.
+func CreateACIAOnListener(l net.Listener) *ACIA {
+	tx := make(chan byte)
+	a := &ACIA{TxChan: tx}
+
+	go func() {
+		defer close(tx)
+
+		ib := make([]byte, 1)
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				log.Print("error accepting connection:", err)
+				continue
+			}
+
+			// Write loop
+			go func() {
+				ob := make([]byte, 1)
+				for {
+					b, ok := <-tx
+					if !ok {
+						return
+					}
+					ob[0] = b
+					_, err := c.Write(ob)
+					if err != nil {
+						log.Print("write error:", err)
+						return
+					}
+				}
+			}()
+
+			// Read loop
+			for {
+				n, err := c.Read(ib)
+				if err != nil {
+					log.Print("read error:", err)
+					break
+				}
+
+				if n == 0 {
+					continue
+				}
+
+				a.ReceiveByte(ib[0])
+			}
+		}
+	}()
+
+	a.HardwareReset()
+	return a
 }
