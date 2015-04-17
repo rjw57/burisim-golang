@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/codegangsta/cli"
 	"github.com/pda/go6502/bus"
@@ -90,10 +91,13 @@ func runSim(c *cli.Context) {
 	sm := buri.SPIMaster{}
 	via1.AttachToPortB(&sm)
 
-	// go forth and execute
+	// go forth and execute at 2MHz == 2000/millisecond
 	cpu.Reset()
-	for {
-		cpu.Step()
+	tickChan := time.Tick(1 * time.Millisecond)
+	for _ = range tickChan {
+		for i := 0; i < 2000; i++ {
+			cpu.Step()
+		}
 	}
 }
 
