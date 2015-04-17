@@ -91,11 +91,11 @@ func runSim(c *cli.Context) {
 	sm := buri.SPIMaster{}
 	via1.AttachToPortB(&sm)
 
-	// go forth and execute at 2MHz == 2000/millisecond
+	// go forth and execute at 2MHz == 20000/(10 milliseconds)
 	cpu.Reset()
-	tickChan := time.Tick(1 * time.Millisecond)
+	tickChan := time.Tick(10 * time.Millisecond)
 	for _ = range tickChan {
-		for i := 0; i < 2000; i++ {
+		for i := 0; i < 20000; i++ {
 			cpu.Step()
 		}
 	}
