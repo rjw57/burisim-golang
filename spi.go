@@ -73,4 +73,4 @@ func (m *SPIMaster) Write(b byte) {
 }
 
 func (m *SPIMaster) Shutdown()      { /* nothing */ }
-func (m *SPIMaster) String() string { return "<SPIMaster>" }
+func (m *SPIMaster) String() string { return "SPIMaster" }
