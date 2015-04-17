@@ -7,9 +7,10 @@ import (
 
 	"github.com/codegangsta/cli"
 	"github.com/pda/go6502/bus"
-	"github.com/pda/go6502/cpu"
 	"github.com/pda/go6502/memory"
+	"github.com/pda/go6502/via6522"
 	"github.com/rjw57/burisim-golang"
+	"github.com/rjw57/go6502/cpu"
 )
 
 func runSim(c *cli.Context) {
@@ -54,6 +55,16 @@ func runSim(c *cli.Context) {
 	if err := cpu.Bus.Attach(acia1, "ACIA1", 0xdffc); err != nil {
 		fmt.Errorf("error attaching ACIA1: %v", err)
 	}
+
+	// create and attach VIA
+	via1 := via6522.NewVia6522(via6522.Options{})
+	if err := cpu.Bus.Attach(via1, "VIA1", 0xdfe0); err != nil {
+		fmt.Errorf("error attaching VIA1: %v", err)
+	}
+
+	// attach SPI master to port B
+	sm := buri.SPIMaster{}
+	via1.AttachToPortB(&sm)
 
 	// go forth and execute
 	cpu.Reset()
