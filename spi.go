@@ -1,5 +1,7 @@
 package buri
 
+import "log"
+
 // SPIMaster emulates a parallel device which is designed to manage multiple SPI
 // devices on one parallel port. The pins are arranged as follows:
 //
@@ -74,3 +76,56 @@ func (m *SPIMaster) Write(b byte) {
 
 func (m *SPIMaster) Shutdown()      { /* nothing */ }
 func (m *SPIMaster) String() string { return "SPIMaster" }
+
+type ByteExchanger interface {
+	Exchange(byte) byte
+}
+
+// ByteExchangeSlave is a SPISlave which implements a byte-oriented exchange
+// protocol.
+type ByteExchangeSlave struct {
+	ByteExchanger
+
+	mosi       bool
+	miso       bool
+	inputByte  byte
+	outputByte byte
+	prevClk    bool
+	bitIdx     int
+}
+
+func (s *ByteExchangeSlave) SetMOSI(v bool) { s.mosi = v }
+func (s *ByteExchangeSlave) GetMISO() bool  { return s.miso }
+
+func (s *ByteExchangeSlave) SetClk(v bool) {
+	// on rising edge...
+	if v && !s.prevClk {
+		log.Print(s.mosi, s.miso)
+		if s.bitIdx < 0 || s.bitIdx >= 8 {
+			panic("invalid bit idx")
+		}
+
+		// mask of current bit, note: MSB first
+		bitMask := byte(1) << uint(7-s.bitIdx)
+
+		// record MOSI in input byte
+		if s.mosi {
+			s.inputByte |= bitMask
+		}
+
+		// write MISO from output byte
+		s.miso = (s.outputByte & bitMask) != 0
+
+		// increment bit index
+		s.bitIdx++
+
+		// got a full byte?
+		if s.bitIdx == 8 {
+			s.outputByte = s.Exchange(s.inputByte)
+			s.bitIdx = 0
+		}
+	}
+
+	// record clock line
+	s.prevClk = v
+}

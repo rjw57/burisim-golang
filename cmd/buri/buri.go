@@ -91,6 +91,13 @@ func runSim(c *cli.Context) {
 	sm := buri.SPIMaster{}
 	via1.AttachToPortB(&sm)
 
+	// attach SD card as device 0
+	sd := buri.SDCardSlave{}
+	sm.Slaves[0] = &sd
+
+	// HW reset via1
+	via1.Reset()
+
 	// go forth and execute at 2MHz == 20000/(10 milliseconds)
 	cpu.Reset()
 	tickChan := time.Tick(10 * time.Millisecond)
