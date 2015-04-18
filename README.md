@@ -8,6 +8,7 @@ It's probably of little interest to others at the moment.
 ## Using picocom
 
 ```console
-$ socat PTY,link=/tmp/a,raw,echo=0 TCP:localhost:9000
-$ picocom --noinit /tmp/a
+$ socat PTY,link=/tmp/a,raw,echo=0 PTY,link=/tmp/b,raw,echo=0
+$ picocom --noinit /tmp/b
+$ buri --serial /tmp/a $OTHER_OPTS
 ```
