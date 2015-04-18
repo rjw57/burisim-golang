@@ -2,6 +2,7 @@ package buri
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 )
@@ -72,6 +73,55 @@ func (a *ACIA) Write(i uint16, v byte) {
 	default:
 		fmt.Printf("write @ %v, %v\n", i, v)
 	}
+}
+
+// CreateACIAOnReaderWriter will create an instance of ACIA and run a goroutine
+// to read/write from/to a specified reader and writer.
+func CreateACIAOnReaderWriter(r io.Reader, w io.Writer) *ACIA {
+	tx := make(chan byte)
+	a := &ACIA{TxChan: tx}
+
+	go func() {
+		defer close(tx)
+
+		ib := make([]byte, 1)
+		for {
+			// Write loop
+			go func() {
+				ob := make([]byte, 1)
+				for {
+					b, ok := <-tx
+					if !ok {
+						return
+					}
+					ob[0] = b
+					_, err := w.Write(ob)
+					if err != nil {
+						log.Print("write error:", err)
+						return
+					}
+				}
+			}()
+
+			// Read loop
+			for {
+				n, err := r.Read(ib)
+				if err != nil {
+					log.Print("read error:", err)
+					break
+				}
+
+				if n == 0 {
+					continue
+				}
+
+				a.ReceiveByte(ib[0])
+			}
+		}
+	}()
+
+	a.HardwareReset()
+	return a
 }
 
 // CreateACIAOnListener will create an instance of ACIA and run a goroutine

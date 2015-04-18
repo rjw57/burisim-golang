@@ -3,7 +3,6 @@ package main
 import (
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"time"
 
@@ -33,11 +32,6 @@ func readRamFile(bus *bus.Bus, filePath string, offset uint16) {
 }
 
 func runSim(c *cli.Context) {
-	args := c.Args()
-	if len(args) == 0 {
-		panic("no ROM image specified")
-	}
-
 	// create the Buri CPU
 	cpu := cpu.Cpu{}
 
@@ -54,8 +48,11 @@ func runSim(c *cli.Context) {
 	}
 
 	// load the ROM from image
-	rp := args[0]
-	if rom, err := memory.RomFromFile(rp); err != nil {
+	rompath := c.GlobalString("rom")
+	if rompath == "" {
+		log.Fatalf("no ROM file specified")
+	}
+	if rom, err := memory.RomFromFile(rompath); err != nil {
 		log.Fatalf("error loading ROM: %v", err)
 	} else {
 		// wire in the ROM at addresses [0xe000, 0xffff]
@@ -70,11 +67,15 @@ func runSim(c *cli.Context) {
 		readRamFile(cpu.Bus, rampath, 0x5000)
 	}
 
-	l, err := net.Listen("tcp", ":9000")
-	if err != nil {
-		log.Fatalf("error listening on socket: %v", err)
+	serialpath := c.GlobalString("serial")
+	if serialpath == "" {
+		log.Fatal("no serial file specified")
 	}
-	acia1 := buri.CreateACIAOnListener(l)
+	sf, err := os.OpenFile(serialpath, os.O_RDWR, 0644)
+	if err != nil {
+		log.Fatalf("error opening serial file: %v", err)
+	}
+	acia1 := buri.CreateACIAOnReaderWriter(sf, sf)
 
 	// attach ACIA1 at 0xdffc
 	if err := cpu.Bus.Attach(acia1, "ACIA1", 0xdffc); err != nil {
@@ -118,6 +119,14 @@ func main() {
 		cli.StringFlag{
 			Name:  "load",
 			Usage: "Specify file to load into RAM at 0x5000",
+		},
+		cli.StringFlag{
+			Name:  "rom",
+			Usage: "Specify file to load into ROM at 0xE000",
+		},
+		cli.StringFlag{
+			Name:  "serial",
+			Usage: "Write/read serial port data to/from this file",
 		},
 	}
 
