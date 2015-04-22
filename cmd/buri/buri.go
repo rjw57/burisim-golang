@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"github.com/codegangsta/cli"
-	"github.com/pda/go6502/bus"
-	"github.com/pda/go6502/memory"
 	"github.com/pda/go6502/via6522"
 	"github.com/rjw57/burisim-golang"
-	"github.com/rjw57/go6502/cpu"
+	"github.com/rjw57/go6502"
 )
 
-func readRamFile(bus *bus.Bus, filePath string, offset uint16) {
+func readRamFile(bus *go6502.Bus, filePath string, offset uint16) {
 	log.Printf("reading %v into RAM at 0x%X", filePath, offset)
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -33,17 +31,17 @@ func readRamFile(bus *bus.Bus, filePath string, offset uint16) {
 
 func runSim(c *cli.Context) {
 	// create the Buri CPU
-	cpu := cpu.Cpu{}
+	cpu := go6502.Cpu{}
 
 	// create an address bus
-	if bus, err := bus.CreateBus(); err == nil {
+	if bus, err := go6502.CreateBus(); err == nil {
 		cpu.Bus = bus
 	} else {
 		log.Fatalf("error creating bus: %v", err)
 	}
 
 	// wire in the RAM at addresses [0x0000, 0x7fff]
-	if err := cpu.Bus.Attach(&memory.Ram{}, "RAM", 0); err != nil {
+	if err := cpu.Bus.Attach(&go6502.Ram{}, "RAM", 0); err != nil {
 		log.Fatalf("error attaching RAM: %v", err)
 	}
 
@@ -52,7 +50,7 @@ func runSim(c *cli.Context) {
 	if rompath == "" {
 		log.Fatalf("no ROM file specified")
 	}
-	if rom, err := memory.RomFromFile(rompath); err != nil {
+	if rom, err := go6502.RomFromFile(rompath); err != nil {
 		log.Fatalf("error loading ROM: %v", err)
 	} else {
 		// wire in the ROM at addresses [0xe000, 0xffff]
