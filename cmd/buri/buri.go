@@ -99,15 +99,9 @@ func runSim(c *cli.Context) {
 
 	// go forth and execute at 2MHz == 20000/(10 milliseconds)
 	cpu.Reset()
-	trace := c.GlobalBool("trace")
 	tickChan := time.Tick(10 * time.Millisecond)
 	for _ = range tickChan {
-		for i := 0; i < 20000; i++ {
-			if trace {
-				log.Print(cpu.String())
-			}
-			cpu.Step()
-		}
+		cpu.StepCycles(20000)
 	}
 }
 
