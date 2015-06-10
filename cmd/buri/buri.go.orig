@@ -1,0 +1,138 @@
+package main
+
+import (
+	"io/ioutil"
+	"log"
+	"os"
+	"time"
+
+	"github.com/codegangsta/cli"
+	"github.com/pda/go6502/via6522"
+	"github.com/rjw57/burisim-golang"
+	"github.com/rjw57/go6502"
+)
+
+func readRamFile(bus *go6502.Bus, filePath string, offset uint16) {
+	log.Printf("reading %v into RAM at 0x%X", filePath, offset)
+	f, err := os.Open(filePath)
+	if err != nil {
+		log.Fatal("error opening file:", err)
+	}
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		log.Fatal("error reading file:", err)
+	}
+
+	for i, b := range data {
+		bus.Write(offset+uint16(i), b)
+	}
+}
+
+func runSim(c *cli.Context) {
+	// create the Buri CPU
+	cpu := go6502.Cpu{}
+
+	// create an address bus
+	if bus, err := go6502.CreateBus(); err == nil {
+		cpu.Bus = bus
+	} else {
+		log.Fatalf("error creating bus: %v", err)
+	}
+
+	// wire in the RAM at addresses [0x0000, 0x7fff]
+	if err := cpu.Bus.Attach(&go6502.Ram{}, "RAM", 0); err != nil {
+		log.Fatalf("error attaching RAM: %v", err)
+	}
+
+	// load the ROM from image
+	rompath := c.GlobalString("rom")
+	if rompath == "" {
+		log.Fatalf("no ROM file specified")
+	}
+	if rom, err := go6502.RomFromFile(rompath); err != nil {
+		log.Fatalf("error loading ROM: %v", err)
+	} else {
+		// wire in the ROM at addresses [0xe000, 0xffff]
+		if err := cpu.Bus.Attach(rom, "ROM", 0xe000); err != nil {
+			log.Fatalf("error attaching ROM: %v", err)
+		}
+	}
+
+	// load the RAM from image
+	rampath := c.GlobalString("load")
+	if rampath != "" {
+		readRamFile(cpu.Bus, rampath, 0x5000)
+	}
+
+	serialpath := c.GlobalString("serial")
+	if serialpath == "" {
+		log.Fatal("no serial file specified")
+	}
+	sf, err := os.OpenFile(serialpath, os.O_RDWR, 0644)
+	if err != nil {
+		log.Fatalf("error opening serial file: %v", err)
+	}
+	acia1 := buri.CreateACIAOnReaderWriter(sf, sf)
+
+	// attach ACIA1 at 0xdffc
+	if err := cpu.Bus.Attach(acia1, "ACIA1", 0xdffc); err != nil {
+		log.Fatalf("error attaching ACIA1: %v", err)
+	}
+
+	// create and attach VIA
+	via1 := via6522.NewVia6522(via6522.Options{})
+	if err := cpu.Bus.Attach(via1, "VIA1", 0xdfe0); err != nil {
+		log.Fatalf("error attaching VIA1: %v", err)
+	}
+
+	// attach SPI master to port B
+	sm := buri.SPIMaster{}
+	via1.AttachToPortB(&sm)
+
+	// attach SD card as device 0
+	sd := buri.SDCardSlave{}
+	sm.Slaves[0] = &sd
+
+	// HW reset via1
+	via1.Reset()
+
+	// go forth and execute at 2MHz == 20000/(10 milliseconds)
+	cpu.Reset()
+	tickChan := time.Tick(10 * time.Millisecond)
+	for _ = range tickChan {
+<<<<<<< Updated upstream
+=======
+		// FIXME: implement --trace
+>>>>>>> Stashed changes
+		cpu.StepCycles(20000)
+	}
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "buri"
+	app.Usage = "emulate the Buri microcomputer"
+	app.Action = runSim
+
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "load",
+			Usage: "Specify file to load into RAM at 0x5000",
+		},
+		cli.StringFlag{
+			Name:  "rom",
+			Usage: "Specify file to load into ROM at 0xE000",
+		},
+		cli.StringFlag{
+			Name:  "serial",
+			Usage: "Write/read serial port data to/from this file",
+		},
+		cli.BoolFlag{
+			Name:  "trace",
+			Usage: "Dump CPU PC and status on each step",
+		},
+	}
+
+	app.Run(os.Args)
+}
