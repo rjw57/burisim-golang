@@ -3,10 +3,13 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/codegangsta/cli"
+	"github.com/gorilla/websocket"
 	"github.com/pda/go6502/via6522"
 	"github.com/rjw57/burisim-golang"
 	"github.com/rjw57/go6502"
@@ -98,11 +101,38 @@ func runSim(c *cli.Context) {
 	via1.Reset()
 
 	// go forth and execute at 2MHz == 20000/(10 milliseconds)
-	cpu.Reset()
-	tickChan := time.Tick(10 * time.Millisecond)
-	for _ = range tickChan {
-		cpu.StepCycles(20000)
+	go func() {
+		cpu.Reset()
+		tickChan := time.Tick(10 * time.Millisecond)
+		for _ = range tickChan {
+			cpu.StepCycles(20000)
+		}
+	}()
+
+	// bus server
+	bus_handler := NewBusWebSocketHandler()
+	bus_handler.Upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+
+		// allow all origins to connect
+		CheckOrigin: func(r *http.Request) bool { return true },
 	}
+
+	io7 := bus_handler.NewBusWebSocketMemory(0xdff0, 0x4)
+	if err := cpu.Bus.Attach(io7, "IO7", io7.Offset); err != nil {
+		log.Fatal(err)
+	}
+
+	// create server handlers
+	http.Handle("/bus", bus_handler)
+	http.Handle("/", http.FileServer(
+		http.Dir(c.GlobalString("staticdir"))))
+
+	// run server
+	ifc := c.GlobalString("host") + ":" + strconv.Itoa(c.GlobalInt("port"))
+	log.Print("Serving on http://", ifc)
+	http.ListenAndServe(ifc, nil)
 }
 
 func main() {
@@ -127,6 +157,21 @@ func main() {
 		cli.BoolFlag{
 			Name:  "trace",
 			Usage: "Dump CPU PC and status on each step",
+		},
+		cli.StringFlag{
+			Name:  "host",
+			Usage: "Hostname to bind websockets server to",
+			Value: "127.0.0.1",
+		},
+		cli.StringFlag{
+			Name:  "staticdir",
+			Usage: "Directory to serve as web interfac",
+			Value: ".",
+		},
+		cli.IntFlag{
+			Name:  "port",
+			Usage: "Port to bind websockets server to",
+			Value: 8080,
 		},
 	}
 
